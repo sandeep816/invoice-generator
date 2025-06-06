@@ -98,7 +98,7 @@ const createStyles = (templateStyles: any) => {
 
 interface InvoicePDFProps {
   invoice: Invoice;
-  currency: string;
+  currency?: string;
   templateId?: string;
 }
 

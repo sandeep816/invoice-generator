@@ -1,5 +1,5 @@
 // Invoice Item type
-export interface InvoiceItem {
+export interface LineItem {
   id: string;
   description: string;
   quantity: number;
@@ -7,8 +7,18 @@ export interface InvoiceItem {
   amount: number;
 }
 
+// Alias for backward compatibility
+export type InvoiceItem = LineItem;
+
+// Template colors interface
+export interface TemplateColors {
+  primary: string;
+  accent: string;
+  background: string;
+}
+
 // Main Invoice type
-export interface Invoice {
+export interface InvoiceData {
   invoiceNumber: string;
   date: string;
   dueDate: string;
@@ -19,7 +29,7 @@ export interface Invoice {
   clientName: string;
   clientAddress: string;
   clientEmail: string;
-  lineItems: InvoiceItem[];
+  lineItems: LineItem[];
   subtotal: number;
   taxRate: number;
   taxAmount: number;
@@ -27,12 +37,11 @@ export interface Invoice {
   notes: string;
   currency: string;
   template: string;
-  templateColors: {
-    primary: string;
-    accent: string;
-    background: string;
-  };
+  templateColors: TemplateColors;
   showLogo: boolean;
   logoPosition: "left" | "right" | "center";
   logo: string | null;
 }
+
+// Alias for backward compatibility
+export type Invoice = InvoiceData;

@@ -4,9 +4,7 @@ import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
-import { Plus, Download, Save, Upload, Trash2, GripVertical, Eye } from "lucide-react"
-import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
-import { InvoicePDF } from "@/components/pdf/InvoicePDF";
+import { Plus, Save, Upload, Trash2, GripVertical } from "lucide-react"
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,47 +19,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 // Add the LogoUpload import
 import { LogoUpload } from "@/components/logo-upload"
 
-// Update the InvoiceData interface to include logo
-interface InvoiceData {
-  invoiceNumber: string
-  date: string
-  dueDate: string
-  companyName: string
-  companyAddress: string
-  companyEmail: string
-  companyPhone: string
-  clientName: string
-  clientAddress: string
-  clientEmail: string
-  lineItems: LineItem[]
-  subtotal: number
-  taxRate: number
-  taxAmount: number
-  total: number
-  notes: string
-  currency: string
-  template: string
-  templateColors: {
-    primary: string
-    accent: string
-    background: string
-  }
-  showLogo: boolean
-  logoPosition: "left" | "right" | "center"
-  logo: string | null
-}
-
-interface LineItem {
-  id: string
-  description: string
-  quantity: number
-  rate: number
-  amount: number
-}
+// Import the Invoice and LineItem types from shared types
+import { Invoice, LineItem } from "@/types";
 
 // Replace the templates array with an import from the new components
 import { TemplatePicker, getTemplateById, getTemplateStyles } from "@/components/invoice-templates"
 import { ColorPicker } from "@/components/color-picker"
+import { PDFDownloadButton } from "@/components/pdf/PDFDownloadButton";
+import { PDFPreviewDialog } from "@/components/pdf/PDFPreviewDialog";
 
 const currencies = [
   { code: "INR", symbol: "₹", name: "US Dollar" },
@@ -74,7 +39,7 @@ const currencies = [
 
 export default function InvoiceGenerator() {
   // Update the initial state to include logo
-  const [invoice, setInvoice] = useState<InvoiceData>({
+  const [invoice, setInvoice] = useState<Invoice>({
     invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
     date: new Date().toISOString().split("T")[0],
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
@@ -171,11 +136,7 @@ export default function InvoiceGenerator() {
     setInvoice((prev) => ({ ...prev, lineItems: items }))
   }
 
-  const generatePDF = () => {
-    // This function is now just a wrapper for the PDFDownloadLink
-    // The actual download will be handled by the PDFDownloadLink component
-    toast.success("Generating PDF...");
-  }
+
 
   const generatePrintableHTML = () => {
     return `
@@ -281,7 +242,7 @@ export default function InvoiceGenerator() {
 
   const saveInvoice = () => {
     const invoices = JSON.parse(localStorage.getItem("invoices") || "[]")
-    const existingIndex = invoices.findIndex((inv: InvoiceData) => inv.invoiceNumber === invoice.invoiceNumber)
+    const existingIndex = invoices.findIndex((inv: Invoice) => inv.invoiceNumber === invoice.invoiceNumber)
 
     if (existingIndex >= 0) {
       invoices[existingIndex] = invoice
@@ -321,26 +282,12 @@ export default function InvoiceGenerator() {
             <p className="text-gray-600">Create professional invoices with ease</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowPreview(!showPreview)}>
-              <Eye className="w-4 h-4 mr-2" />
-              {showPreview ? "Edit" : "Preview"}
-            </Button>
-            <Button variant="outline" onClick={saveInvoice}>
+            <PDFDownloadButton invoice={invoice} />
+            <PDFPreviewDialog invoice={invoice} />
+            <Button variant="outline" size="sm" onClick={saveInvoice}>
               <Save className="w-4 h-4 mr-2" />
-              Save
+              Save Invoice
             </Button>
-            <PDFDownloadLink 
-              document={<InvoicePDF invoice={invoice} currency={selectedCurrency?.symbol || '$'} />}
-              fileName={`invoice-${invoice.invoiceNumber}.pdf`}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-            >
-              {({ blob, url, loading, error }) => (
-                <Button onClick={generatePDF} disabled={loading}>
-                  <Download className="w-4 h-4 mr-2" />
-                  {loading ? 'Generating PDF...' : 'Download PDF'}
-                </Button>
-              )}
-            </PDFDownloadLink>
           </div>
         </div>
 
@@ -778,7 +725,35 @@ export default function InvoiceGenerator() {
   )
 }
 
-function InvoicePreview({ invoice, currency }: { invoice: InvoiceData; currency: any }) {
+// Define a type for currency that can be a string or an object with symbol property
+type CurrencyType = string | { symbol: string; code?: string; name?: string };
+
+function InvoicePreview({ invoice, currency = 'USD' }: { invoice: Invoice; currency?: CurrencyType }) {
+  // Helper function to get currency symbol
+  const getCurrencySymbol = (currencyValue: CurrencyType): string => {
+    if (typeof currencyValue === 'string') {
+      try {
+        const formatter = new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: currencyValue,
+          currencyDisplay: 'symbol',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        });
+        
+        // Extract the currency symbol
+        const parts = formatter.formatToParts(0);
+        return parts.find(part => part.type === 'currency')?.value || currencyValue;
+      } catch (e) {
+        return currencyValue; // Return as is if Intl formatting fails
+      }
+    } else {
+      // If it's an object with a symbol property, use that
+      return currencyValue.symbol || currencyValue.code || 'USD';
+    }
+  };
+  
+  const currencySymbol = getCurrencySymbol(currency);
   const template = getTemplateById(invoice.template)
   const styles = getTemplateStyles(template)
 
@@ -878,12 +853,10 @@ function InvoicePreview({ invoice, currency }: { invoice: InvoiceData; currency:
                 <td className={styles.tableCell}>{item.description}</td>
                 <td className={`${styles.tableCell} text-center`}>{item.quantity}</td>
                 <td className={`${styles.tableCell} text-right`}>
-                  {currency?.symbol}
-                  {item.rate.toFixed(2)}
+                  {currencySymbol}{item.rate.toFixed(2)}
                 </td>
                 <td className={`${styles.tableCell} text-right`}>
-                  {currency?.symbol}
-                  {item.amount.toFixed(2)}
+                  {currencySymbol}{item.amount.toFixed(2)}
                 </td>
               </tr>
             ))}
@@ -896,22 +869,19 @@ function InvoicePreview({ invoice, currency }: { invoice: InvoiceData; currency:
           <div className={styles.totalRow}>
             <span>Subtotal:</span>
             <span>
-              {currency?.symbol}
-              {invoice.subtotal.toFixed(2)}
+              {currencySymbol}{invoice.subtotal.toFixed(2)}
             </span>
           </div>
           <div className={styles.totalRow}>
             <span>Tax ({invoice.taxRate}%):</span>
             <span>
-              {currency?.symbol}
-              {invoice.taxAmount.toFixed(2)}
+              {currencySymbol}{invoice.taxAmount.toFixed(2)}
             </span>
           </div>
           <div className={styles.grandTotal} style={{ borderColor: invoice.templateColors.primary }}>
             <span>Total:</span>
             <span>
-              {currency?.symbol}
-              {invoice.total.toFixed(2)}
+              {currencySymbol}{invoice.total.toFixed(2)}
             </span>
           </div>
         </div>
